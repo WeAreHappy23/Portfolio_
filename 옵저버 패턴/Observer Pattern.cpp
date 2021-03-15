@@ -5,7 +5,7 @@
 
 // 레퍼런스 카운트로 관리
 // CBase <- CObserver 
-// CBase <- CSubject
+// CBase <- CSubject <- CManager
 
 #include<iostream>
 
