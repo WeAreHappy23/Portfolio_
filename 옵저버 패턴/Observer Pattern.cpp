@@ -137,7 +137,8 @@ public:
 	~CManager() = default;
 
 public:
-	virtual void Register_Main(CObserver* _pMain_Monster)
+	// 버프를 줄 몬스터 등록
+	virtual void Register_Main(CObserver* _pMain_Monster) override
 	{
 		if(nullptr != m_pMain_Monster)
 			m_pMain_Monster->Set_ReleaseRef();
@@ -145,7 +146,8 @@ public:
 		m_pMain_Monster = _pMain_Monster;
 		m_pMain_Monster->Set_AddRef();
 	}
-	virtual void Register_Observer(CObserver* _pObserver)
+	// 버프를 받을 몬스터 등록
+	virtual void Register_Observer(CObserver* _pObserver) override
 	{
 		if (true == Check_Pointer(_pObserver))
 			return;
@@ -153,7 +155,8 @@ public:
 		m_listObserver.emplace_back(_pObserver);
 		_pObserver->Set_AddRef();
 	}
-	virtual void Release_Observer(CObserver* _pObserver)
+	// 등록된 몬스터 해제
+	virtual void Release_Observer(CObserver* _pObserver) override
 	{
 		list<CObserver*>::iterator iter = m_listObserver.begin();
 
@@ -167,7 +170,8 @@ public:
 			}
 		}
 	}
-	virtual void Notify_Buff()
+	// 이벤트 부여
+	virtual void Notify_Buff() override
 	{
 		if (nullptr == m_pMain_Monster)
 			return;
@@ -178,7 +182,7 @@ public:
 			pObserver->Set_Buff(m_pMain_Monster, BUFF(rand() % int(BUFF::BUFF_END)));
 		}
 	}
-
+	// 중복 등록되었는지 확인
 	bool Check_Pointer(CObserver* _pObserver)
 	{
 		for (auto& pObserver : m_listObserver)
@@ -224,7 +228,7 @@ int main()
 	pManager->Register_Observer(pObserver[4]);
 	pManager->Register_Observer(pObserver[5]);
 
-	pManager->Notify_Buff();
+	pManager->Notify_Buff();		// 이벤트 발생
 
 	cout << endl;
 	cout << "ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ" << endl;
@@ -233,7 +237,7 @@ int main()
 	pManager->Release_Observer(pObserver[3]);
 	pManager->Release_Observer(pObserver[5]);
 	pManager->Register_Main(pMain_Monster_Rubellite);
-	pManager->Notify_Buff();
+	pManager->Notify_Buff();		// 이벤트 발생
 
 	cout << endl;
 
