@@ -1,11 +1,18 @@
 // 옵저버 패턴
-// 메인 몬스터, 기본 몬스터 생성	-> 옵저버
-// 매니저 생성						-> 메인 몬스터와 대상 몬스터들을 등록 후 Notify_Buff함수 호출
-// -> 등록된 몬스터에 랜덤한 버프 부여
 
-// 레퍼런스 카운트로 관리
-// CBase <- CObserver 
-// CBase <- CSubject <- CManager
+// 중재자 패턴과는 달리 수직적인 형태로 이벤트를 전달하는 패턴
+// 등록된 요소들을 순회하면서 이벤트를 전달한다
+
+// 등록된 객체에 한해서 이벤트를 전달할 수 있다.
+
+// 구현
+// 1. 몬스터를 매니저에 등록
+// 2. 매니저가 이벤트를 전달하면 몬스터는 버프를 랜덤으로 부여받음
+
+// 느낀 점
+// 1. 지금까지의 프로젝트에서는 중재자 패턴을 사용해서 수평적인 관계로 이벤트를 전달
+// 2. 동일한 클래스의 객체라도 일정 조건에서 이벤트를 줘야할지 말지를 결정하기 위해서는 옵저버패턴을 사용하면 효율적이라고 생각
+// 3. 단점으로는 등록된 객체에 대해서 엄격한 관리가 필요하다고 생각 (객체 등록해제를 잊으면 다음에 원하지 않는 결과가 생길 가능성이 있다고 생각)
 
 #include<iostream>
 
@@ -173,6 +180,7 @@ public:
 	// 이벤트 부여
 	virtual void Notify_Buff() override
 	{
+		// 버프를 줄 몬스터가 없으면 함수를 빠져나간다
 		if (nullptr == m_pMain_Monster)
 			return;
 
@@ -241,15 +249,13 @@ int main()
 
 	cout << endl;
 
-	#pragma region 해제
-
+	// 해제
 	pManager->Set_ReleaseRef();
 	for (auto& pobserver_element : pObserver)
 		pobserver_element->Set_ReleaseRef();
 	pMain_Monster_Caides->Set_ReleaseRef();
 	pMain_Monster_Rubellite->Set_ReleaseRef();
 
-	#pragma endregion
 	
 	return 0;
 }
