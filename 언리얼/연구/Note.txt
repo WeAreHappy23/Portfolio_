@@ -1,0 +1,21 @@
+// 함수
+// NativeUpdateAnimation : 애님 인스턴스 클래스에서 매 틱마다 호출되는 함수
+// TryGetPawnOwner : 해당 폰을 얻을 수 있는 함수 
+// APawn::GetVelocity : 폰의 속도를 구할 수 있다.
+// IsValid : 유효성 검사. Pending Kill 상태까지 유효성 검사를 하기 위해 사용되는 함수. https://lykanstudio.tistory.com/14
+
+// 엔진 기술 관련
+// UPROPERTY로 변수를 만들면 반드시 0으로 초기화 대상이 된다. UPROPERTY대상으로 초기화하지 않아도 되는 이유를 알게된 계기.
+// 언리얼 오브젝트가되면 자동으로 메모리관리를 받는다.
+// 4.15버전부터 IWYU방식을 적용. 
+// 로직 순서 : 입력시스템 > 게임 로직 > 애니메이션 시스템 순. (입력을 하고 로직을 처리하며 최종적으로 애니메이션을 결정한다.)
+// DX와 같은 왼손좌표계를 사용하지만, X (Roll / DX의 Look벡터), Y (Pitch / DX의 Right벡터), Z (Yaw / DX의 Up벡터) 헷갈리지 않게 유의할 것
+
+// Cast<>
+// 안정성을 위해 실패 시 nullptr를 반환하지만, dynamic_cast의 방식을 사용하지 않으며, 이는 리플렉션 시스템이 내장되어 있기 때문
+// Cast<> (https://peterleontev.com/blog/unreal_cast/)
+// 리플렉션 (https://www.unrealengine.com/ko/blog/unreal-property-system-reflection)
+
+// C++ 애니메이션 인스턴스를 불러올 수 있는 방법
+// 스켈레탈메시를 통해서 애니메이션 인스턴스를 불러올 수 있다.
+// GetMesh()->GetAnimInstance() / 이것을 통해 액터가 적용하고 있는 애님인스턴스(커스텀)로 캐스팅해 원하는 함수를 사용할 수 있다.
