@@ -1,5 +1,10 @@
 #include "ABCharacter.h"
 #include "ABAnimInstance.h"
+#include "ABWeapon.h"
+#include "Components/WidgetComponent.h"
+#include "ABCharacterWidget.h"
+#include "ABCharacterStatComponent.h"
+#include "DrawDebugHelpers.h"
 
 const float AABCharacter::m_fZoomValue_Max = 200.f;
 const float AABCharacter::m_fZoomValue_Min = -200.f;
@@ -11,9 +16,12 @@ AABCharacter::AABCharacter()
 
 	m_pSpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SPRINGARM"));
 	m_pCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("CAMERA"));
+	m_pCharacterStat = CreateDefaultSubobject<UABCharacterStatComponent>(TEXT("CHARACTERSTAT"));
+	m_pHPBarUI = CreateDefaultSubobject<UWidgetComponent>(TEXT("HPBARUI"));
 
 	m_pSpringArm->SetupAttachment(GetCapsuleComponent());
 	m_pCamera->SetupAttachment(m_pSpringArm);
+	m_pHPBarUI->SetupAttachment(GetMesh());
 
 	GetMesh()->SetRelativeLocationAndRotation(FVector(0.f, 0.f, -88.f), FRotator(0.f, -90.f, 0.f));
 	m_pSpringArm->TargetArmLength = 400.f;
@@ -31,7 +39,16 @@ AABCharacter::AABCharacter()
 	static ConstructorHelpers::FClassFinder<UAnimInstance>ANIM_WARRIOR(TEXT("/Game/Animations/WarriorAnimBluePrint.WarriorAnimBluePrint_C"));
 	if (true == ANIM_WARRIOR.Succeeded())
 		GetMesh()->SetAnimInstanceClass(ANIM_WARRIOR.Class);
-	
+
+	static ConstructorHelpers::FClassFinder<UUserWidget>UI_HUD(TEXT("/Game/UI/UI_HPBar.UI_HPBar_C"));
+	if (true == UI_HUD.Succeeded())
+	{
+		m_pHPBarUI->SetRelativeLocation(FVector(0.f, 0.f, 180.f));
+		m_pHPBarUI->SetWidgetSpace(EWidgetSpace::Screen);
+		m_pHPBarUI->SetWidgetClass(UI_HUD.Class);
+		m_pHPBarUI->SetDrawSize(FVector2D(150.f, 50.f));
+	}
+
 	// View 설정
 	SetControlMode(ECONTROL_MODE::THIRD_PERSON_MODE);
 
@@ -43,12 +60,51 @@ AABCharacter::AABCharacter()
 	m_bIsAttacking = false;
 	m_iMaxCombo = 4;
 	AttackEndComboState();
+	m_fAttackRange = 200.f;
+	m_fAttackRadius = 50.f;
+
+	GetCapsuleComponent()->SetCollisionProfileName(TEXT("ABCharacter"));
 }
 
+void AABCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+	m_pAnimInstance = Cast<UABAnimInstance>(GetMesh()->GetAnimInstance());		// 미리 변수로서 캐싱한다. 람다식에서도 사용 가능
+	ABCHECK(nullptr != m_pAnimInstance);
+
+	// 몽타주가 종료되면 바인딩된 함수가 호출된다.
+	m_pAnimInstance->OnMontageEnded.AddDynamic(this, &AABCharacter::OnAttackMontageEnded);
+
+	// 몽타주에서 해당 노티파이를 만났을 때 람다로 정의된 함수가 실행된다. 마지막 콤보는 노티파이가 없어 추가 콤보는 일어나지 않는다.
+	m_pAnimInstance->OnNextAttackCheck.AddLambda([this]()->void {
+		ABLOG(Warning, TEXT("OnNextAttackCheck"));
+		m_bCanNextCombo = false;
+
+		if (true == m_bInputCombo)		// 노티파이가 호출되기 전에 이 조건을 만족하면 다음 콤보 실행
+		{
+			AttackStartComboState();
+			m_pAnimInstance->JumpToAttackMontageSection(m_iCurrentCombo);
+		}
+	});
+	m_pAnimInstance->OnAttackHitCheck.AddUObject(this, &AABCharacter::AttackCheck);
+
+	m_pCharacterStat->OnHPisZeroDelegate.AddLambda([this]()->void {
+		m_pAnimInstance->SetDeath();
+		SetActorEnableCollision(false);
+	});
+}
 
 void AABCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// 4.21버전 부터 위젯의 초기화 시점이 PostInitializeComponents에서 BeginePlay로 바뀜
+	// pCharacterWidget가 기능을 올바르게 수행하기 위해 BeginPlay에 작성
+	auto pCharacterWidget = Cast<UABCharacterWidget>(m_pHPBarUI->GetUserWidgetObject());
+	if (nullptr != pCharacterWidget)
+	{
+		pCharacterWidget->BindCharacterHP(m_pCharacterStat);
+	}
 }
 
 void AABCharacter::Tick(float DeltaTime)
@@ -71,27 +127,7 @@ void AABCharacter::Tick(float DeltaTime)
 	}
 }
 
-void AABCharacter::PostInitializeComponents()
-{
-	Super::PostInitializeComponents();
-	m_pAnimInstance = Cast<UABAnimInstance>(GetMesh()->GetAnimInstance());		// 미리 변수로서 캐싱한다. 람다식에서도 사용 가능
-	ABCHECK(nullptr != m_pAnimInstance);
 
-	// 몽타주가 종료되면 바인딩된 함수가 호출된다.
-	m_pAnimInstance->OnMontageEnded.AddDynamic(this, &AABCharacter::OnAttackMontageEnded);
-
-	// 몽타주에서 해당 노티파이를 만났을 때 람다로 정의된 함수가 실행된다. 마지막 콤보는 노티파이가 없어 추가 콤보는 일어나지 않는다.
-	m_pAnimInstance->OnNextAttackCheck.AddLambda([this]()->void{		
-		ABLOG(Warning, TEXT("OnNextAttackCheck")); 
-		m_bCanNextCombo = false; 
-
-		if (true == m_bInputCombo)		// 노티파이가 호출되기 전에 이 조건을 만족하면 다음 콤보 실행
-		{
-			AttackStartComboState();
-			m_pAnimInstance->JumpToAttackMontageSection(m_iCurrentCombo);
-		}
-	});
-}
 
 void AABCharacter::OnAttackMontageEnded(UAnimMontage * _pMontage, bool _bInterrupted)
 {
@@ -114,6 +150,57 @@ void AABCharacter::AttackEndComboState()
 	m_bCanNextCombo = false;
 	m_bInputCombo = false;
 	m_iCurrentCombo = 0;
+}
+
+void AABCharacter::AttackCheck()
+{
+	FHitResult tHitResult;
+	FCollisionQueryParams tParams(NAME_None, false, this);		// 디버깅에 사용되는 이름으로 보임 / 복잡한 충돌은 하지 않는다 / this는 충돌 검사 대상에서 제외한다.
+	bool	bResult = GetWorld()->SweepSingleByChannel(			// 시작과 끝 지점을 쓸면서 물리판점이 일어났는지 확인하는 함수
+		tHitResult,	// 물리적 충돌이 일어날 경우 정보가 이 구조체에 담긴다.
+		GetActorLocation(),	// 시작위치
+		GetActorLocation() + GetActorForwardVector() * 200.f,		// 끝 위치
+		FQuat::Identity,		// 탐색에 사용될 도형 회전
+		ECollisionChannel::ECC_GameTraceChannel2,	// 사용할 트레이스 채널 정보 (여기서는 Attack채널)
+		FCollisionShape::MakeSphere(50.f),	// 탐색에 사용할 도형
+		tParams		// 위에서 정의한 바와 같이 충돌 방법에 대한 설정을 하는 구조체
+	);
+
+#if ENABLE_DRAW_DEBUG
+
+	FVector vecTraceDir = GetActorForwardVector() * m_fAttackRange;
+	FVector vecCenter = GetActorLocation() + vecTraceDir * 0.5f;
+	float fHalfHeight = m_fAttackRadius + m_fAttackRange * 0.5f;
+	FQuat quaCapsuleRot = FRotationMatrix::MakeFromZ(vecTraceDir).ToQuat();
+	FColor colDraw = (true == bResult) ? FColor::Green : FColor::Red;
+	float fDebugLifeTime = 5.f;
+
+	DrawDebugCapsule(
+		GetWorld(),
+		vecCenter,
+		fHalfHeight,
+		m_fAttackRadius,
+		quaCapsuleRot,
+		colDraw,
+		false,
+		fDebugLifeTime
+	);
+
+#endif
+
+	if (true == bResult)
+	{
+		// FHitResult의 Actor는 WeakPtr인데, 가비지콜렉션 작업을 할 수 있기 위해서다.
+		// 이 객체가 다른 함수의 결과로 지워져야하는데 이 검사를 위해서 참조를 계속한다면 메모리에 계속 남아있기 때문에 이 문제를 해결하기 위해서다.
+		// 이런 객체를 사용할 때 유효한지 점검해야한다.
+		if (true == tHitResult.Actor.IsValid())
+		{
+			ABLOG(Warning, TEXT("Hit Actor Name : %s"), *tHitResult.Actor->GetName());
+
+			FDamageEvent tDamageEvent;
+			tHitResult.Actor->TakeDamage(m_pCharacterStat->GetDamage() , tDamageEvent, GetController(), this);		// 데미지를 가한 주체는 명령을 내린 컨트롤러.
+		}
+	}
 }
 
 void AABCharacter::UpDown(float _fAxisValue)
@@ -238,6 +325,22 @@ void AABCharacter::SetControlMode(ECONTROL_MODE _eMode)
 	}
 }
 
+void AABCharacter::SetWeapon(AABWeapon * _pWeapon)
+{
+	ABCHECK(nullptr != _pWeapon && nullptr == m_pWeapon);
+
+	FName WeaponSocketName(TEXT("hand_rSocket"));
+	
+	_pWeapon->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponSocketName);
+	_pWeapon->SetOwner(this);
+	m_pWeapon = _pWeapon;
+}
+
+bool AABCharacter::CanSetWeapon()
+{
+	return (nullptr == m_pWeapon);
+}
+
 void AABCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
@@ -253,3 +356,13 @@ void AABCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	PlayerInputComponent->BindAction(TEXT("Attack"), EInputEvent::IE_Pressed, this, &AABCharacter::Attack);
 }
 
+float AABCharacter::TakeDamage(float DamageAmount, FDamageEvent const & DamageEvent, AController * EventInstigator, AActor * DamageCauser)
+{
+	float fFinalDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+
+	ABLOG(Warning, TEXT("%s Damage : %f"), *EventInstigator->GetName(), fFinalDamage);
+
+	m_pCharacterStat->Damaged(fFinalDamage);
+
+	return fFinalDamage;
+}

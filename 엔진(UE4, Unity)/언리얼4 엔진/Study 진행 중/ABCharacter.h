@@ -3,7 +3,6 @@
 #include "ArenaBattle.h"
 #include "GameFramework/Character.h"
 #include "Arena_Enum.h"
-
 #include "ABCharacter.generated.h"
 
 
@@ -28,6 +27,12 @@ public:
 		USpringArmComponent*			m_pSpringArm;
 	UPROPERTY(VisibleAnywhere, Category = Camera)
 		UCameraComponent*				m_pCamera;
+	UPROPERTY(VisibleAnywhere, Category = Weapon)
+		class AABWeapon*					m_pWeapon;
+	UPROPERTY(VisibleAnywhere, Category = Stat)
+		class UABCharacterStatComponent*		m_pCharacterStat;
+	UPROPERTY(VisibleAnywhere, Category = UI)
+		class UWidgetComponent*			m_pHPBarUI;
 
 protected:
 	ECONTROL_MODE		m_eControl_Mode = ECONTROL_MODE::CONTROL_MODE_END;
@@ -55,7 +60,11 @@ protected:
 		int32		m_iCurrentCombo;
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = Attack, Meta = (AllowPrivateAccess))
 		int32		m_iMaxCombo;
-
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = Attack, Meta = (AllowPrivateAccess))
+		float		m_fAttackRange;
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = Attack, Meta = (AllowPrivateAccess))
+		float		m_fAttackRadius;
+	
 protected:	
 	static const float m_fZoomValue_Max;
 	static const float m_fZoomValue_Min;
@@ -67,16 +76,15 @@ protected:
 public:	
 	virtual void Tick(float DeltaTime) override;
 	virtual void PostInitializeComponents() override;
-
+	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 private:		// µ®∏Æ∞‘¿Ã∆Æ
 	UFUNCTION()
 		void OnAttackMontageEnded(UAnimMontage* _pMontage, bool _bInterrupted);
 
 private:
-	UFUNCTION()
 		void AttackStartComboState();
-	UFUNCTION()
 		void AttackEndComboState();
+		void AttackCheck();
 
 private:		// Input Function
 	// Axis
@@ -93,4 +101,10 @@ private:		// Input Function
 private:		// Data Set Function
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	void SetControlMode(ECONTROL_MODE _eMode);
+	
+public:
+	void SetWeapon(class AABWeapon* _pWeapon);
+
+public:
+	bool CanSetWeapon();
 };

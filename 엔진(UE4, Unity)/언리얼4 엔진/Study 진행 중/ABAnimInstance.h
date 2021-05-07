@@ -22,6 +22,8 @@ private:
 		float		m_fCurrentPawnSpeed;
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = Pawn, Meta = (AllowPrivateAccess))
 		bool		m_bInAir;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Pawn, Meta = (AllowPrivateAccess))
+		bool		m_bDeath;
 
 private:
 	UFUNCTION()		// Dynamic Delegate와 연동되는 함수는 이 매크로를 붙여야한다.
@@ -33,6 +35,7 @@ public:
 	void PlayAttackMontage();
 	void JumpToAttackMontageSection(int32 _iNewSection);
 	FName GetAttackMontageSectionName(int32 _iSection);
+	void SetDeath() { m_bDeath = true; }
 
 public:
 	FOnNextAttackCheckDelegate OnNextAttackCheck;
